@@ -1,0 +1,22 @@
+artifact_detection:
+  names:
+    - person
+    - backpack
+    - handbag
+    - suitcase
+    - remote
+    - cell phone
+  names_remap:
+    - person
+    - backpack
+    - backpack
+    - backpack
+    - cell phone
+    - cell phone
+  prob_thres: # Primary threshold is set in yolo*.yaml (0.3), this is secondary threshold
+    - 0.7
+    - 0.3
+    - 0.3
+    - 0.3
+    - 0.3
+    - 0.3

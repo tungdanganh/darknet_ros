@@ -75,6 +75,62 @@ bool YoloObjectDetector::readParameters()
   rosBoxes_ = std::vector<std::vector<RosBox_> >(numClasses_);
   rosBoxCounter_ = std::vector<int>(numClasses_);
 
+  // Load artifacts
+  nodeHandle_.param("artifact_detection/names", artifactLabels_,
+                    std::vector<std::string>(0));
+  nodeHandle_.param("artifact_detection/names_remap", artifactRemappedLabels_,
+                    std::vector<std::string>(0));
+  nodeHandle_.param("artifact_detection/prob_thres", artifactProbThres_,
+                    std::vector<double>(0));
+  int a_size = artifactLabels_.size();
+  if (a_size) {
+    artifactInd_.resize(a_size);
+    for (int i = 0; i < a_size; ++i) {
+      bool found_name = false;
+      for (int j = 0; j < numClasses_; ++j) {
+        if (!artifactLabels_[i].compare(classLabels_[j])) {
+          artifactInd_[i] = j;
+          found_name = true;
+          break;
+        }
+      }
+      if (!found_name) {
+        ROS_ERROR("Could not find the artifact name: %s from the training classes", artifactLabels_[i]);
+        return false;
+      }
+    }
+  } else {
+    ROS_WARN("Artifact list is not set.");
+  }
+
+  a_size = artifactRemappedLabels_.size();
+  if ((a_size) && (a_size == artifactLabels_.size())) {
+    artifactRemappedInd_.resize(a_size);
+    for (int i = 0; i < a_size; ++i) {
+      bool found_name = false;
+      for (int j = 0; j < numClasses_; ++j) {
+        if (!artifactRemappedLabels_[i].compare(classLabels_[j])) {
+          artifactRemappedInd_[i] = j;
+          found_name = true;
+          break;
+        }
+      }
+      if (!found_name) {
+        ROS_ERROR("Could not find the remapped artifact name: %s from the training classes", artifactRemappedLabels_[i]);
+        return false;
+      }
+    }
+  } else {
+    artifactRemappedLabels_.clear();
+    ROS_WARN("Artifact list is not remapped.");
+  }
+
+  a_size = artifactProbThres_.size();
+  if ((!a_size) || (a_size != artifactLabels_.size())) {
+    artifactProbThres_.clear();
+    ROS_WARN("Artifact probability is not set.");
+  }
+
   return true;
 }
 
@@ -324,6 +380,41 @@ detection *YoloObjectDetector::avgPredictions(network *net, int *nboxes)
   return dets;
 }
 
+void YoloObjectDetector::edit_class_name(detection *dets, int nboxes) {
+  int artifact_size = artifactInd_.size();
+  if (artifact_size == 0) return;
+
+  // Scan the detected boxes
+  for (int i = 0; i < nboxes; ++i) {
+    // Filter out unused or low probability artifacts
+    for (int j = 0; j < demoClasses_; ++j) {
+      if (dets[i].prob[j]) {
+        bool in_list = false;
+        for (int k = 0; k < artifact_size; ++k) {
+          if (j == artifactInd_[k]) {
+            in_list = true;
+            if (dets[i].prob[j] < artifactProbThres_[k]) dets[i].prob[j] = 0;
+            break;
+          }
+        }
+        if (!in_list) dets[i].prob[j] = 0;
+      }
+    }
+    // Remap artifact's name if required
+    int artifact_remap_size = artifactRemappedInd_.size();
+    if (artifact_remap_size) {
+      for (int k = 0; k < artifact_remap_size; ++k) {
+        int art_ind = artifactInd_[k];
+        int art_re_ind = artifactRemappedInd_[k];
+        if ((dets[i].prob[art_ind]) && (art_ind != art_re_ind)) {
+          if (!dets[i].prob[art_re_ind]) dets[i].prob[art_re_ind] = dets[i].prob[art_ind];
+          dets[i].prob[art_ind] = 0;
+        }
+      }
+    }
+  }
+}
+
 void *YoloObjectDetector::detectInThread()
 {
   running_ = 1;
@@ -339,6 +430,10 @@ void *YoloObjectDetector::detectInThread()
   dets = avgPredictions(net_, &nboxes);
 
   if (nms > 0) do_nms_obj(dets, nboxes, l.classes, nms);
+
+  // TUNG
+  if (artifactInd_.size()) edit_class_name(dets, nboxes);
+  // END TUNG
 
   if (enableConsoleOutput_) {
     printf("\033[2J");

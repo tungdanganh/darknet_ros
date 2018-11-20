@@ -139,6 +139,11 @@ class YoloObjectDetector
   //! Class labels.
   int numClasses_;
   std::vector<std::string> classLabels_;
+  std::vector<std::string> artifactLabels_;
+  std::vector<std::string> artifactRemappedLabels_;
+  std::vector<int> artifactInd_;
+  std::vector<int> artifactRemappedInd_;
+  std::vector<double> artifactProbThres_;
 
   //! Check for objects action server.
   CheckForObjectsActionServerPtr checkForObjectsActionServer_;
@@ -246,6 +251,9 @@ class YoloObjectDetector
   bool isNodeRunning(void);
 
   void *publishInThread();
+
+  void edit_class_name(detection *dets, int nboxes);
+
 };
 
 } /* namespace darknet_ros*/
