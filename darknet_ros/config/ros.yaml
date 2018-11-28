@@ -3,7 +3,7 @@ subscribers:
 # /ptgrey_node/left/image_raw
 # /camera_array/blackfly/image_raw
   camera_reading:
-    topic: /ptgrey_node/left/image_raw
+    topic: /ptgrey_node/right/image_raw
     queue_size: 1
 
 actions:
